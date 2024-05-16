@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:mqtt_flutter_android/services/mqtt_service.dart';
+import 'package:provider/provider.dart';
 
 // // THE SUBSCRIBER WIDGET
 class SubscriberPage extends StatefulWidget {
@@ -10,11 +14,12 @@ class SubscriberPage extends StatefulWidget {
 // // THE STATE MANAGER ==================================================================
 class _SubscriberPageState extends State<SubscriberPage> {
 
-  // @override
-  // void dispose() {
-  //   messageValueNotifier.dispose();
-  //   super.dispose();
-  // }
+  ValueNotifier<String> messageValueNotifier = ValueNotifier<String>('');
+  @override
+  void dispose() {
+    messageValueNotifier.dispose();
+    super.dispose();
+  }
   // -------------------------------------------
 
   _SubscriberPageState();
@@ -22,6 +27,7 @@ class _SubscriberPageState extends State<SubscriberPage> {
   final TextEditingController _statusController = TextEditingController();
   TextEditingController _messageController = TextEditingController();
 
+  MqttService mqttServiceSub = MqttService();
 
   // Status Colors for the Subscriber UI
   Color _getStatusColor() {
@@ -41,11 +47,80 @@ class _SubscriberPageState extends State<SubscriberPage> {
   @override
   void initState() {
     super.initState();
+    mqttServiceSub.connect('client_sub');
   }
   // // ==============================================================================
   // // INITIALIZATION ENDED ---------------------------------------------------------
   // // ==============================================================================
+  void _subscribeToTopic(mqttServiceSub) async {
+    final topic = _topicController.text.trim();
 
+    print('mqtt service sub : $mqttServiceSub');
+    if (topic.isNotEmpty) {
+      print('Subscribing to Topic: $topic');
+      //_mqttConnection.subscribe(topic, MqttQos.atLeastOnce);
+      //_statusController.text = 'SUBSCRIBED';
+      print('mqtt qos : $MqttQos.atLeastOnce');
+
+      try {
+        // Ensure that the MQTT client is connected before subscribing
+        await mqttServiceSub.connect('flutter_client');
+      } catch (e) {
+        print('Failed to connect to MQTT broker: $e');
+        return;
+      }
+
+      // After connecting, subscribe to the topic
+      mqttServiceSub.subscribe(topic, MqttQos.atLeastOnce);
+      setState(() {
+        _statusController.text = 'SUBSCRIBED'; // Update status controller text
+      });
+      print('Subscribed to Topic: $topic');
+    } else {
+      //_statusController.text = '';
+      setState(() {
+        _statusController.text = ''; // Update status controller text
+      });
+      print('Failed to subscribe: Topic is empty.');
+    }
+  }
+
+// async added
+  void _unsubscribeFromTopic(mqttServiceSub) async {
+    final topic = _topicController.text.trim();
+    if (topic.isNotEmpty) {
+      // --------------------------------------------------------------------
+      print('Unsubscribing from Topic: $topic');
+
+      mqttServiceSub.unsubscribe(topic);
+
+      setState(() {
+        _statusController.text = 'UNSUBSCRIBED';
+      });
+
+      print('Unsubscribed from Topic: $topic');
+      // -----------------------------------------------------------------------
+    } else {
+      //_statusController.text = '';
+      setState(() {
+        _statusController.text = ''; // Update status controller text
+      });
+      print('Failed to unsubscribe.');
+    }
+  }
+
+  // ------------------------------------------------------------------------
+  // List<String> messageList = [];
+  // void displayMessage(String message) {
+  //   messageList.add(message);
+  // }
+
+  String combinedMessages = '';
+
+  void displayMessage(String topic, String message) {
+    String formattedMessage = 'Received Message: $message\nOn topic: $topic\n';
+    combinedMessages = formattedMessage + combinedMessages;
+  }
 
 
 
@@ -60,10 +135,10 @@ class _SubscriberPageState extends State<SubscriberPage> {
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
     double boxWidth = (2 / 3) * screenWidth;
-    // ValueNotifier<String> data2Notifier =
-    //     Provider.of<MqttService>(context).data;
-    // String? data2 = data2Notifier.value;
-    // bool isSnackbarDisplayed = false;
+    ValueNotifier<String> data2Notifier =
+        Provider.of<MqttService>(context).data;
+    String? data2 = data2Notifier.value;
+    bool isSnackbarDisplayed = false;
     // ---------------------------------------------------------------------------------------
     return Scaffold(
       appBar: AppBar(
@@ -162,41 +237,41 @@ class _SubscriberPageState extends State<SubscriberPage> {
                             borderRadius: BorderRadius.circular(8.0),
                           ),
                           // -----------------------------------------------
-                          child: TextField(
-                            controller: _messageController,
-                            textAlign: TextAlign.center,
-                            maxLines: 10,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          // --- DISPLAY PUBLISHED MESSAGES ------------------------------------
-                          // child: ValueListenableBuilder<String>(
-                          //   valueListenable: messageValueNotifier,
-                          //   //valueListenable: myListNotifier,
-                          //   //valueListenable: mqttServiceSub.data,
-                          //   builder: (BuildContext context, String value,
-                          //       Widget? child) {
-                          //     if (data2 != null && data2.isNotEmpty) {
-                          //       print('value (data2) : $data2');
-                          //     }
-                          //
-                          //     // --------------------------------------------------------------
-                          //     return TextField(
-                          //       //controller: _messageController,
-                          //       controller: TextEditingController(text: data2),
-                          //       textAlign: TextAlign.center,
-                          //       maxLines: 10,
-                          //       decoration: InputDecoration(
-                          //         border: OutlineInputBorder(),
-                          //       ),
-                          //       //readOnly: true,
-                          //     );
+                          // child: TextField(
+                          //   controller: _messageController,
+                          //   textAlign: TextAlign.center,
+                          //   maxLines: 10,
+                          //   decoration: InputDecoration(
+                          //     border: OutlineInputBorder(),
+                          //   ),
+                          // ),
+                          // // --- DISPLAY PUBLISHED MESSAGES ------------------------------------
+                          child: ValueListenableBuilder<String>(
+                            valueListenable: messageValueNotifier,
+                            //valueListenable: myListNotifier,
+                            //valueListenable: mqttServiceSub.data,
+                            builder: (BuildContext context, String value,
+                                Widget? child) {
+                              if (data2 != null && data2.isNotEmpty) {
+                                print('value (data2) : $data2');
+                              }
+
+                              // --------------------------------------------------------------
+                              return TextField(
+                                //controller: _messageController,
+                                controller: TextEditingController(text: data2),
+                                textAlign: TextAlign.center,
+                                maxLines: 10,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(),
+                                ),
+                                //readOnly: true,
+                              );
                               // --------------------------------------------------------
-                           // },
+                           },
                             // builder
                             // -----------------------------------------------------
-                          //),
+                          ),
                           //valueListenable: mqttServiceSub.data,
                           // child 2
                         ),
@@ -251,14 +326,14 @@ class _SubscriberPageState extends State<SubscriberPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       ElevatedButton(
-                        onPressed: () {},
+                        //onPressed: () {},
                         //onPressed: _subscribeToTopic,
                         //onPressed: () => _subscribeToTopic(mqttServiceSub),
-                        // onPressed: () {
-                        //   var mqttServiceSub =
-                        //   Provider.of<MqttService>(context, listen: false);
-                        //   _subscribeToTopic(mqttServiceSub);
-                        // },
+                        onPressed: () {
+                          var mqttServiceSub =
+                          Provider.of<MqttService>(context, listen: false);
+                          _subscribeToTopic(mqttServiceSub);
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                         ),
@@ -273,14 +348,14 @@ class _SubscriberPageState extends State<SubscriberPage> {
                       // --- UNSUBSCRIBE BUTTON -----------------------------------------------------------
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: () {},
+                        //onPressed: () {},
                         //onPressed: _unsubscribeFromTopic,
                         //onPressed: () => _unsubscribeFromTopic(mqttServiceSub),
-                        // onPressed: () {
-                        //   var mqttServiceSub =
-                        //   Provider.of<MqttService>(context, listen: false);
-                        //   _unsubscribeFromTopic(mqttServiceSub);
-                        // },
+                        onPressed: () {
+                          var mqttServiceSub =
+                          Provider.of<MqttService>(context, listen: false);
+                          _unsubscribeFromTopic(mqttServiceSub);
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                         ),
@@ -294,41 +369,41 @@ class _SubscriberPageState extends State<SubscriberPage> {
                   ),
                   // ----- NOTIFICATIONS(SNACK BAR) ----------------------------------------------------------------
                   // Snackbar Notifications
-                  // const SizedBox(height: 8),
-                  // Builder(
-                  //   builder: (BuildContext context) {
-                  //     String? data2 =
-                  //         Provider.of<MqttService>(context).data.value;
-                  //     // Show Snackbar with data2 value
-                  //     // WidgetsBinding.instance!.addPostFrameCallback((_) {
-                  //     //   ScaffoldMessenger.of(context).showSnackBar(
-                  //     //     SnackBar(
-                  //     //       content: Text('New meesage arrived : $data2'),
-                  //     //       duration: Duration(seconds: 3),
-                  //     //     ),
-                  //     //   );
-                  //     // });
-                  //     // -------------------------------------------------------------------------
-                  //     if (data2 != null &&
-                  //         data2.isNotEmpty &&
-                  //         !isSnackbarDisplayed) {
-                  //       // Show Snackbar with data2 value
-                  //       WidgetsBinding.instance!.addPostFrameCallback((_) {
-                  //         ScaffoldMessenger.of(context).showSnackBar(
-                  //           SnackBar(
-                  //             content: Text(
-                  //                 "Notification : New Message '$data2' arrived."),
-                  //             backgroundColor: Colors.blue,
-                  //             duration: Duration(seconds: 3),
-                  //           ),
-                  //         );
-                  //       });
-                  //       isSnackbarDisplayed = true;
-                  //     }
-                  //     // Placeholder widget
-                  //     return Container();
-                  //   },
-                  // ),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (BuildContext context) {
+                      String? data2 =
+                          Provider.of<MqttService>(context).data.value;
+                      // Show Snackbar with data2 value
+                      // WidgetsBinding.instance!.addPostFrameCallback((_) {
+                      //   ScaffoldMessenger.of(context).showSnackBar(
+                      //     SnackBar(
+                      //       content: Text('New meesage arrived : $data2'),
+                      //       duration: Duration(seconds: 3),
+                      //     ),
+                      //   );
+                      // });
+                      // -------------------------------------------------------------------------
+                      if (data2 != null &&
+                          data2.isNotEmpty &&
+                          !isSnackbarDisplayed) {
+                        // Show Snackbar with data2 value
+                        WidgetsBinding.instance!.addPostFrameCallback((_) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  "Notification : New Message '$data2' arrived."),
+                              backgroundColor: Colors.blue,
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        });
+                        isSnackbarDisplayed = true;
+                      }
+                      // Placeholder widget
+                      return Container();
+                    },
+                  ),
                   // -----------------------------------------------------------------------------------------------
                 ],
               ),
